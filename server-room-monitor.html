@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Server Room Monitor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f0ede8;
+    --surface: #faf9f7;
+    --surface2: #f5f2ee;
+    --border: #ddd9d2;
+    --border-strong: #c8c2b8;
+    --text: #2c2825;
+    --text-muted: #8c8278;
+    --text-dim: #b0a89e;
+    --green: #2d9e6b;
+    --green-bg: #edf7f2;
+    --green-border: #b8e4cf;
+    --red: #d94040;
+    --red-bg: #fdf0f0;
+    --red-border: #f0bcbc;
+    --yellow: #c97c1a;
+    --yellow-bg: #fdf5e8;
+    --yellow-border: #f0d9aa;
+    --blue: #2a6fb5;
+    --blue-bg: #eef4fd;
+    --blue-border: #b8d0f0;
+    --px: 3px;
+    --radius: 2px;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--bg); font-family:'DM Mono',monospace; color:var(--text); min-height:100vh; }
+  body::before {
+    content:''; position:fixed; inset:0; pointer-events:none; z-index:0;
+    background-image:url("data:image/svg+xml,%3Csvg width='4' height='4' viewBox='0 0 4 4' xmlns='http://www.w3.org/2000/svg'%3E%3Crect x='0' y='0' width='1' height='1' fill='%23000' opacity='0.018'/%3E%3C/svg%3E");
+  }
+  .app { position:relative; z-index:1; max-width:960px; margin:0 auto; padding:24px 20px 48px; }
+
+  /* HEADER */
+  .header {
+    display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;
+    background:var(--surface); border:var(--px) solid var(--border-strong);
+    border-bottom:4px solid var(--border-strong); border-radius:var(--radius);
+    padding:14px 18px; margin-bottom:20px;
+  }
+  .header-left { display:flex; align-items:center; gap:12px; }
+  .header-icon {
+    width:34px; height:34px; background:var(--text); border-radius:var(--radius);
+    display:flex; align-items:center; justify-content:center; flex-shrink:0;
+  }
+  .header-icon svg { width:20px; height:20px; }
+  .header-title { font-family:'Press Start 2P',monospace; font-size:9px; color:var(--text); line-height:1.7; }
+  .header-title small { display:block; font-size:6px; color:var(--text-muted); margin-top:2px; }
+  .header-right { display:flex; align-items:center; gap:16px; }
+  .clock { font-family:'Press Start 2P',monospace; font-size:9px; color:var(--text-muted); letter-spacing:1px; }
+  .live-badge { display:flex; align-items:center; gap:6px; font-family:'Press Start 2P',monospace; font-size:7px; color:var(--text-muted); }
+  .live-dot { width:8px; height:8px; background:var(--text-dim); border-radius:0; transition:background .3s; }
+  .live-dot.on { background:var(--green); animation:blink 1.2s step-end infinite; }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.2} }
+
+  /* ALERT */
+  .alert-banner {
+    display:none; align-items:center; gap:12px;
+    background:var(--red-bg); border:var(--px) solid var(--red-border);
+    border-left:6px solid var(--red); border-bottom:4px solid #e8aaaa;
+    padding:12px 16px; margin-bottom:20px; border-radius:var(--radius);
+    animation:slidein .15s steps(3);
+  }
+  @keyframes slidein { from{opacity:0;transform:translateY(-4px)} to{opacity:1;transform:translateY(0)} }
+  .alert-banner.show { display:flex; }
+  .alert-icon { font-family:'Press Start 2P',monospace; font-size:16px; color:var(--red); flex-shrink:0; animation:shake .5s steps(2) infinite; }
+  @keyframes shake { 0%,100%{transform:translateX(0)} 50%{transform:translateX(2px)} }
+  .alert-body strong { display:block; font-family:'Press Start 2P',monospace; font-size:7px; color:var(--red); margin-bottom:4px; }
+  .alert-body span { font-size:11px; color:var(--red); opacity:.8; }
+
+  /* GRID */
+  .g2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px; }
+  .g3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px; margin-bottom:16px; }
+
+  /* CARD */
+  .card {
+    background:var(--surface); border:var(--px) solid var(--border);
+    border-bottom:4px solid var(--border-strong); border-radius:var(--radius);
+    padding:16px; transition:border-color .3s, background .3s;
+  }
+  .card.alert { background:var(--red-bg); border-color:var(--red-border); border-bottom-color:#e8aaaa; }
+  .card-label { font-family:'Press Start 2P',monospace; font-size:6px; color:var(--text-dim); letter-spacing:1.5px; margin-bottom:12px; }
+
+  /* VALUE */
+  .big-row { display:flex; align-items:baseline; gap:6px; margin-bottom:4px; }
+  .big-num { font-family:'Press Start 2P',monospace; font-size:28px; line-height:1; color:var(--text); transition:color .3s; }
+  .big-unit { font-size:11px; color:var(--text-muted); }
+  .value-sub { font-size:10px; margin-bottom:14px; transition:color .3s; }
+
+  /* BAR */
+  .bar-wrap { position:relative; margin:16px 0 6px; }
+  .bar-track { height:12px; background:var(--surface2); border:2px solid var(--border); position:relative; overflow:visible; }
+  .bar-fill {
+    height:100%; max-width:100%;
+    background:repeating-linear-gradient(90deg,var(--green) 0,var(--green) 7px,transparent 7px,transparent 9px);
+    transition:width .5s steps(18), background .3s;
+  }
+  .bar-fill.blue { background:repeating-linear-gradient(90deg,var(--blue) 0,var(--blue) 7px,transparent 7px,transparent 9px) !important; }
+  .thresh-pin { position:absolute; top:-4px; bottom:-4px; width:3px; background:var(--red); }
+  .thresh-tag {
+    position:absolute; top:-20px; transform:translateX(-50%);
+    font-family:'Press Start 2P',monospace; font-size:5px; color:var(--red);
+    background:var(--surface); border:1px solid var(--red-border); padding:1px 4px; white-space:nowrap;
+  }
+  .bar-labels { display:flex; justify-content:space-between; font-size:9px; color:var(--text-dim); }
+
+  /* MINI CHART */
+  .mini-chart { margin-top:12px; height:48px; background:var(--surface2); border:2px solid var(--border); overflow:hidden; }
+  .mini-chart canvas { display:block; image-rendering:pixelated; }
+
+  /* HARDWARE */
+  .hw-row { display:flex; align-items:center; gap:12px; padding:9px 0; border-bottom:2px solid var(--border); }
+  .hw-row:last-child { border-bottom:none; padding-bottom:0; }
+  .hw-row:first-child { padding-top:0; }
+  .hw-led { width:14px; height:14px; flex-shrink:0; border:2px solid var(--border-strong); background:var(--surface2); transition:all .3s; }
+  .hw-led.green { background:var(--green); border-color:var(--green-border); box-shadow:0 0 0 2px rgba(45,158,107,.12); }
+  .hw-led.red { background:var(--red); border-color:var(--red-border); box-shadow:0 0 0 2px rgba(217,64,64,.18); animation:ledpulse .45s step-end infinite; }
+  @keyframes ledpulse { 0%,100%{opacity:1} 50%{opacity:.2} }
+  .buzzer { width:14px; height:14px; flex-shrink:0; border:2px solid var(--border-strong); background:var(--surface2); display:flex; align-items:center; justify-content:center; transition:all .3s; }
+  .buzzer.on { background:var(--yellow); border-color:var(--yellow-border); animation:buzzshake .08s steps(2) infinite; }
+  @keyframes buzzshake { 0%{transform:translateX(-1px)} 100%{transform:translateX(1px)} }
+  .buzzer-dot { width:6px; height:6px; background:var(--border-strong); }
+  .buzzer.on .buzzer-dot { background:#fff; }
+  .hw-name { font-size:10px; color:var(--text); margin-bottom:2px; }
+  .hw-sub { font-size:9px; color:var(--text-dim); transition:color .3s; }
+  .hw-sub.green { color:var(--green); }
+  .hw-sub.red { color:var(--red); }
+
+  /* STATS */
+  .stat-row { display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:2px solid var(--border); }
+  .stat-row:last-child { border-bottom:none; }
+  .stat-k { font-size:9px; color:var(--text-dim); }
+  .stat-v { font-family:'Press Start 2P',monospace; font-size:8px; color:var(--text); }
+  .stat-v.red{color:var(--red)} .stat-v.yellow{color:var(--yellow)} .stat-v.blue{color:var(--blue)} .stat-v.green{color:var(--green)}
+
+  /* CONTROLS */
+  .controls { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:16px; }
+  .btn {
+    font-family:'Press Start 2P',monospace; font-size:7px; padding:9px 13px;
+    background:var(--surface); color:var(--text); border:var(--px) solid var(--border-strong);
+    border-bottom:4px solid var(--border-strong); border-radius:var(--radius);
+    cursor:pointer; letter-spacing:.5px; transition:all .08s; white-space:nowrap;
+  }
+  .btn:hover { background:var(--surface2); }
+  .btn:active { border-bottom-width:var(--px); transform:translateY(2px); }
+  .btn.green { background:var(--green-bg); color:var(--green); border-color:var(--green-border); border-bottom-color:#90cdb5; }
+  .btn.green:hover { background:#ddf2ea; }
+  .btn.red { background:var(--red-bg); color:var(--red); border-color:var(--red-border); border-bottom-color:#e8aaaa; }
+  .btn.sm { padding:6px 9px; font-size:8px; border-bottom-width:3px; }
+  .thresh-ctrl { display:flex; align-items:center; gap:8px; margin-left:auto; }
+  .thresh-label { font-size:9px; color:var(--text-muted); }
+  .thresh-val { font-family:'Press Start 2P',monospace; font-size:9px; color:var(--yellow); background:var(--yellow-bg); border:2px solid var(--yellow-border); padding:5px 10px; min-width:52px; text-align:center; border-radius:var(--radius); }
+
+  /* LOG */
+  .log-scroll { height:140px; overflow-y:auto; background:var(--surface2); border:2px solid var(--border); border-radius:var(--radius); padding:10px 12px; scroll-behavior:smooth; }
+  .log-scroll::-webkit-scrollbar { width:6px; }
+  .log-scroll::-webkit-scrollbar-track { background:var(--surface2); }
+  .log-scroll::-webkit-scrollbar-thumb { background:var(--border-strong); }
+  .log-line { display:flex; gap:10px; margin-bottom:4px; font-size:11px; animation:logfade .1s step-end; }
+  @keyframes logfade { from{opacity:0} to{opacity:1} }
+  .log-t { color:var(--text-dim); flex-shrink:0; font-size:10px; }
+  .log-m { color:var(--text-muted); }
+  .log-m.warn{color:var(--yellow)} .log-m.danger{color:var(--red);font-weight:500} .log-m.ok{color:var(--green)} .log-m.info{color:var(--blue)}
+
+  /* SPRITE WRAP */
+  .sprite-wrap { display:flex; justify-content:center; align-items:center; padding:6px 0; }
+
+  @media(max-width:640px) {
+    .g2,.g3 { grid-template-columns:1fr; }
+    .big-num { font-size:22px; }
+    .thresh-ctrl { margin-left:0; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header class="header">
+    <div class="header-left">
+      <div class="header-icon">
+        <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="2" y="3" width="16" height="4" fill="#faf9f7"/>
+          <rect x="2" y="9" width="16" height="4" fill="#faf9f7"/>
+          <rect x="2" y="15" width="16" height="2" fill="#faf9f7"/>
+          <rect x="15" y="4" width="2" height="2" fill="#2d9e6b"/>
+          <rect x="15" y="10" width="2" height="2" fill="#2d9e6b"/>
+        </svg>
+      </div>
+      <div class="header-title">
+        SERVER ROOM MONITOR
+        <small>DHT11 · PIEZO BUZZER · RED LED</small>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="live-badge">
+        <div class="live-dot" id="liveDot"></div>
+        <span id="liveLabel">IDLE</span>
+      </div>
+      <div class="clock" id="clock">--:--:--</div>
+    </div>
+  </header>
+
+  <div class="alert-banner" id="alertBanner">
+    <div class="alert-icon">⚠</div>
+    <div class="alert-body">
+      <strong>TEMPERATURE THRESHOLD EXCEEDED</strong>
+      <span id="alertMsg">Cooling required — buzzer and LED are active.</span>
+    </div>
+  </div>
+
+  <div class="g2">
+    <div class="card" id="tempCard">
+      <div class="card-label">Temperature · DHT11</div>
+      <div class="big-row">
+        <div class="big-num" id="tempVal">--.-</div>
+        <div class="big-unit">°C</div>
+      </div>
+      <div class="value-sub" id="tempSub" style="color:var(--text-dim)">Waiting for data...</div>
+      <div class="bar-wrap">
+        <div class="bar-track">
+          <div class="bar-fill" id="tempBar" style="width:0%"></div>
+          <div class="thresh-pin" id="threshPin" style="left:62%">
+            <div class="thresh-tag" id="threshTag">31°C</div>
+          </div>
+        </div>
+        <div class="bar-labels" style="margin-top:4px"><span>0°C</span><span>50°C</span></div>
+      </div>
+      <div class="mini-chart"><canvas id="tempChart"></canvas></div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">Humidity · DHT11</div>
+      <div class="big-row">
+        <div class="big-num" id="humidVal" style="color:var(--blue)">--.-</div>
+        <div class="big-unit">% RH</div>
+      </div>
+      <div class="value-sub" id="humidSub" style="color:var(--text-dim)">Waiting for data...</div>
+      <div class="bar-wrap">
+        <div class="bar-track">
+          <div class="bar-fill blue" id="humidBar" style="width:0%"></div>
+        </div>
+        <div class="bar-labels" style="margin-top:4px"><span>0%</span><span>Optimal 40–60%</span><span>100%</span></div>
+      </div>
+      <div class="mini-chart"><canvas id="humidChart"></canvas></div>
+    </div>
+  </div>
+
+  <div class="g3">
+    <div class="card">
+      <div class="card-label">Hardware Status</div>
+      <div class="hw-row">
+        <div class="hw-led green" id="dht11Led"></div>
+        <div>
+          <div class="hw-name">DHT11 Sensor</div>
+          <div class="hw-sub green">Online</div>
+        </div>
+      </div>
+      <div class="hw-row">
+        <div class="hw-led" id="redLed"></div>
+        <div>
+          <div class="hw-name">Red LED</div>
+          <div class="hw-sub" id="redLedSub">Standby</div>
+        </div>
+      </div>
+      <div class="hw-row">
+        <div class="buzzer" id="buzzerEl"><div class="buzzer-dot"></div></div>
+        <div>
+          <div class="hw-name">Piezo Buzzer</div>
+          <div class="hw-sub" id="buzzerSub">Standby</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">Server Unit</div>
+      <div class="sprite-wrap">
+        <canvas id="serverCanvas" width="120" height="160" style="image-rendering:pixelated;width:120px;height:160px;"></canvas>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">Session Stats</div>
+      <div class="stat-row"><span class="stat-k">Uptime</span><span class="stat-v" id="uptime">00:00:00</span></div>
+      <div class="stat-row"><span class="stat-k">Readings</span><span class="stat-v" id="readCount">0</span></div>
+      <div class="stat-row"><span class="stat-k">Alerts</span><span class="stat-v red" id="alertCount">0</span></div>
+      <div class="stat-row"><span class="stat-k">Max Temp</span><span class="stat-v yellow" id="maxTemp">---</span></div>
+      <div class="stat-row"><span class="stat-k">Min Temp</span><span class="stat-v blue" id="minTemp">---</span></div>
+      <div class="stat-row"><span class="stat-k">Threshold</span><span class="stat-v green" id="threshStat">31°C</span></div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="btn green" id="simBtn" onclick="toggleSim()">▶ SIMULATE</button>
+    <button class="btn red" onclick="forceAlert()">⚠ FORCE ALERT</button>
+    <button class="btn" onclick="clearLog()">✕ CLEAR LOG</button>
+    <div class="thresh-ctrl">
+      <span class="thresh-label">Threshold:</span>
+      <button class="btn sm" onclick="adj(-1)">▼</button>
+      <div class="thresh-val" id="threshDisplay">31°C</div>
+      <button class="btn sm" onclick="adj(1)">▲</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-label">System Log</div>
+    <div class="log-scroll" id="logArea"></div>
+  </div>
+
+</div>
+<script>
+let threshold=31, temp=24.5, humidity=52;
+let simRunning=false, simInterval=null;
+let alertCount=0, readCount=0, isAlerting=false;
+let startTime=Date.now(), maxTemp=null, minTemp=null, simPhase=0;
+const TH=new Array(60).fill(24), HH=new Array(60).fill(52);
+
+function drawServer(a) {
+  const c=document.getElementById('serverCanvas'), ctx=c.getContext('2d');
+  ctx.clearRect(0,0,120,160); ctx.imageSmoothingEnabled=false;
+  const px=10, f=(x,y,w,h,col)=>{ctx.fillStyle=col;ctx.fillRect(x*px,y*px,w*px,h*px);};
+  const body=a?'#fdf0f0':'#f5f2ee', edge=a?'#f0bcbc':'#ddd9d2';
+  const led=a?'#d94040':'#2d9e6b', panel=a?'#fbe8e8':'#ede9e4', screw='#c8c2b8';
+  f(0,0,12,16,edge); f(0,0,11,15,body);
+  for(let r=0;r<4;r++){
+    f(1,1+r*3,8,2,panel); f(1,1+r*3,8,.3,edge);
+    f(8,1+r*3,1,1,(a&&r<2)?led:(Math.random()>.6?led:screw));
+  }
+  f(1,13,2,1,a?'#d94040':'#2d9e6b');
+  f(4,13,5,1,edge); f(5,13,1,1,panel); f(7,13,1,1,panel);
+  for(let i=0;i<5;i++) f(1+i*2,14,1,1,edge);
+  for(const[sx,sy]of[[0,0],[10,0],[0,14],[10,14]]) f(sx,sy,1,1,screw);
+  if(a) for(let i=0;i<5;i++){
+    const hx=2+Math.floor(Math.random()*8);
+    ctx.fillStyle=`rgba(217,64,64,${.15+Math.random()*.2})`;
+    ctx.fillRect(hx*px,-px*.6,px,px*.7);
+  }
+}
+
+function drawChart(id,data,color,min,max,tv) {
+  const c=document.getElementById(id), W=c.parentElement.clientWidth||300, H=48;
+  c.width=W; c.height=H; const ctx=c.getContext('2d'); ctx.clearRect(0,0,W,H);
+  if(tv!==undefined){
+    const ty=H-((tv-min)/(max-min))*H;
+    ctx.strokeStyle='rgba(217,64,64,.25)'; ctx.setLineDash([3,3]); ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(0,ty); ctx.lineTo(W,ty); ctx.stroke(); ctx.setLineDash([]);
+  }
+  const sw=W/data.length; ctx.fillStyle=color;
+  for(let i=0;i<data.length;i++){
+    const n=Math.max(0,Math.min(1,(data[i]-min)/(max-min)));
+    const bh=Math.max(1,Math.round(n*H/2)*2);
+    ctx.fillRect(Math.floor(i*sw),H-bh,Math.max(1,Math.floor(sw)-1),bh);
+  }
+}
+
+function update() {
+  const A=temp>=threshold;
+  // Values
+  document.getElementById('tempVal').textContent=temp.toFixed(1);
+  document.getElementById('humidVal').textContent=humidity.toFixed(1);
+  const tn=document.getElementById('tempVal');
+  tn.style.color=A?'var(--red)':(temp>=threshold-3?'var(--yellow)':'var(--text)');
+  // Sub text
+  const ts=document.getElementById('tempSub');
+  if(A){ts.textContent=`▲ ${(temp-threshold).toFixed(1)}°C above threshold`;ts.style.color='var(--red)';}
+  else if(temp>=threshold-3){ts.textContent='Approaching threshold — monitor closely';ts.style.color='var(--yellow)';}
+  else{ts.textContent='Within safe operating range';ts.style.color='var(--green)';}
+  const hs=document.getElementById('humidSub');
+  if(humidity<30){hs.textContent='Too dry — static discharge risk';hs.style.color='var(--yellow)';}
+  else if(humidity>70){hs.textContent='Too humid — condensation risk';hs.style.color='var(--yellow)';}
+  else{hs.textContent='Humidity within optimal range';hs.style.color='var(--green)';}
+  // Bars
+  const tp=Math.min(100,(temp/50)*100), thp=Math.min(100,(threshold/50)*100);
+  document.getElementById('tempBar').style.width=tp+'%';
+  document.getElementById('humidBar').style.width=Math.min(100,humidity)+'%';
+  document.getElementById('threshPin').style.left=thp+'%';
+  document.getElementById('threshTag').textContent=threshold+'°C';
+  const bc=A?'#d94040':(temp>=threshold-3?'#c97c1a':'#2d9e6b');
+  document.getElementById('tempBar').style.background=`repeating-linear-gradient(90deg,${bc} 0,${bc} 7px,transparent 7px,transparent 9px)`;
+  // Card
+  document.getElementById('tempCard').className='card'+(A?' alert':'');
+  // Banner
+  if(A){
+    document.getElementById('alertBanner').classList.add('show');
+    document.getElementById('alertMsg').textContent=`Temp is ${temp.toFixed(1)}°C (threshold: ${threshold}°C). Buzzer and LED are active.`;
+  } else document.getElementById('alertBanner').classList.remove('show');
+  // Hardware
+  document.getElementById('redLed').className='hw-led'+(A?' red':'');
+  document.getElementById('redLedSub').textContent=A?'ACTIVE — ALERT':'Standby';
+  document.getElementById('redLedSub').className='hw-sub'+(A?' red':'');
+  document.getElementById('buzzerEl').className='buzzer'+(A?' on':'');
+  document.getElementById('buzzerSub').textContent=A?'BEEPING — ALERT':'Standby';
+  document.getElementById('buzzerSub').className='hw-sub'+(A?' red':'');
+  document.getElementById('liveDot').className='live-dot'+(simRunning?' on':'');
+  document.getElementById('liveLabel').textContent=simRunning?'LIVE':'IDLE';
+  drawServer(A);
+  TH.push(temp);TH.shift(); HH.push(humidity);HH.shift();
+  const cc=A?'rgba(217,64,64,.5)':(temp>=threshold-3?'rgba(201,124,26,.5)':'rgba(45,158,107,.5)');
+  drawChart('tempChart',TH,cc,0,50,threshold);
+  drawChart('humidChart',HH,'rgba(42,111,181,.4)',0,100);
+  if(maxTemp===null||temp>maxTemp) maxTemp=temp;
+  if(minTemp===null||temp<minTemp) minTemp=temp;
+  document.getElementById('maxTemp').textContent=maxTemp.toFixed(1)+'°C';
+  document.getElementById('minTemp').textContent=minTemp.toFixed(1)+'°C';
+  document.getElementById('readCount').textContent=readCount;
+  document.getElementById('alertCount').textContent=alertCount;
+  if(A&&!isAlerting){isAlerting=true;alertCount++;addLog(`Temp exceeded threshold: ${temp.toFixed(1)}°C > ${threshold}°C — Buzzer + LED active`,'danger');}
+  else if(!A&&isAlerting){isAlerting=false;addLog(`Temperature normalized: ${temp.toFixed(1)}°C — System safe`,'ok');}
+}
+
+function t(){return new Date().toLocaleTimeString('en-GB',{hour12:false});}
+function addLog(msg,type='info'){
+  const a=document.getElementById('logArea'),el=document.createElement('div');
+  el.className='log-line';
+  el.innerHTML=`<span class="log-t">${t()}</span><span class="log-m ${type}">${msg}</span>`;
+  a.appendChild(el); a.scrollTop=a.scrollHeight;
+}
+function clearLog(){document.getElementById('logArea').innerHTML='';addLog('Log cleared by operator','info');}
+
+function tick(){
+  document.getElementById('clock').textContent=new Date().toLocaleTimeString('en-GB',{hour12:false});
+  const s=Math.floor((Date.now()-startTime)/1000);
+  document.getElementById('uptime').textContent=
+    `${String(Math.floor(s/3600)).padStart(2,'0')}:${String(Math.floor((s%3600)/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
+}
+
+function toggleSim(){
+  if(simRunning){
+    clearInterval(simInterval); simRunning=false;
+    document.getElementById('simBtn').textContent='▶ SIMULATE';
+    document.getElementById('simBtn').className='btn green';
+    addLog('Simulation stopped','info');
+  } else {
+    simRunning=true;
+    document.getElementById('simBtn').textContent='■ STOP SIM';
+    document.getElementById('simBtn').className='btn red';
+    addLog('Simulation started — DHT11 feeding data','ok');
+    runSim(); simInterval=setInterval(runSim,2000);
+  }
+  update();
+}
+
+function runSim(){
+  simPhase+=0.09;
+  temp=Math.max(18,Math.min(44,26+Math.sin(simPhase)*6+(Math.random()-.4)*2));
+  humidity=Math.max(25,Math.min(85,53+Math.sin(simPhase*.5)*16+(Math.random()-.5)*4));
+  readCount++; update();
+  if(readCount%8===0) addLog(`DHT11 — Temp: ${temp.toFixed(1)}°C  Humidity: ${humidity.toFixed(1)}%`,'info');
+}
+
+function forceAlert(){
+  temp=threshold+2.5+Math.random()*3; readCount++;
+  addLog(`Manual alert triggered — Temp forced to ${temp.toFixed(1)}°C`,'warn'); update();
+}
+
+function adj(d){
+  threshold=Math.max(20,Math.min(45,threshold+d));
+  document.getElementById('threshDisplay').textContent=threshold+'°C';
+  document.getElementById('threshStat').textContent=threshold+'°C';
+  addLog(`Threshold updated to ${threshold}°C`,'warn'); update();
+}
+
+// Init
+drawServer(false);
+drawChart('tempChart',TH,'rgba(45,158,107,.5)',0,50,threshold);
+drawChart('humidChart',HH,'rgba(42,111,181,.4)',0,100);
+addLog('Server Room Monitor v1.0 initialized','ok');
+addLog('DHT11 sensor online and ready','ok');
+addLog('Piezo buzzer standby','info');
+addLog('Red LED standby','info');
+addLog('Press ▶ SIMULATE to begin or connect Arduino serial feed','info');
+setInterval(tick,1000); tick(); update();
+</script>
+</body>
+</html>
