@@ -97,8 +97,8 @@ cp .env.example .env
 
 Edit `.env`:
 ```env
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_KEY=your-anon-key-here
+SUPABASE_URL=https://wrozfczqhmvhtpspzees.supabase.co
+SUPABASE_KEY=sb_publishable_e8eh3yIF9MKyptcvpVzmxQ_AgriWkaj
 ```
 
 ### Step 5: Start Server
