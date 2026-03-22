@@ -298,7 +298,7 @@
   </div>
 
   <div class="controls">
-    <button class="btn green" id="simBtn" onclick="toggleSim()">▶ SIMULATE</button>
+    <button class="btn green" id="simBtn" onclick="toggleAPI()">▶ CONNECT API</button>
     <button class="btn red" onclick="forceAlert()">⚠ FORCE ALERT</button>
     <button class="btn" onclick="clearLog()">✕ CLEAR LOG</button>
     <div class="thresh-ctrl">
@@ -318,9 +318,13 @@
 <script>
 let threshold=31, temp=24.5, humidity=52;
 let simRunning=false, simInterval=null;
+let apiRunning=false, apiInterval=null;
 let alertCount=0, readCount=0, isAlerting=false;
 let startTime=Date.now(), maxTemp=null, minTemp=null, simPhase=0;
 const TH=new Array(60).fill(24), HH=new Array(60).fill(52);
+
+// API Configuration - Explicit server address
+const API_BASE = "http://192.168.68.104:8000";
 
 function drawServer(a) {
   const c=document.getElementById('serverCanvas'), ctx=c.getContext('2d');
@@ -431,6 +435,29 @@ function tick(){
     `${String(Math.floor(s/3600)).padStart(2,'0')}:${String(Math.floor((s%3600)/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
 }
 
+async function fetchFromAPI() {
+  try {
+    const response = await fetch(API_BASE + '/api/sensors');
+    const data = await response.json();
+    
+    if (data.temperature !== null) {
+      temp = data.temperature;
+      humidity = data.humidity;
+      threshold = data.threshold;
+      readCount++;
+      
+      // Update threshold display
+      document.getElementById('threshDisplay').textContent = threshold + '°C';
+      document.getElementById('threshStat').textContent = threshold + '°C';
+      
+      addLog(`DHT11 — Temp: ${temp.toFixed(1)}°C  Humidity: ${humidity.toFixed(1)}%`,'info');
+      update();
+    }
+  } catch (error) {
+    addLog('Error fetching from API: ' + error.message,'warn');
+  }
+}
+
 function toggleSim(){
   if(simRunning){
     clearInterval(simInterval); simRunning=false;
@@ -445,6 +472,21 @@ function toggleSim(){
     runSim(); simInterval=setInterval(runSim,2000);
   }
   update();
+}
+
+function toggleAPI(){
+  if(apiRunning){
+    clearInterval(apiInterval); apiRunning=false;
+    document.getElementById('simBtn').textContent='▶ CONNECT API';
+    document.getElementById('simBtn').className='btn green';
+    addLog('API disconnected','info');
+  } else {
+    apiRunning=true;
+    document.getElementById('simBtn').textContent='■ DISCONNECT';
+    document.getElementById('simBtn').className='btn red';
+    addLog('Connecting to Arduino API...','ok');
+    fetchFromAPI(); apiInterval=setInterval(fetchFromAPI,3000);
+  }
 }
 
 function runSim(){
@@ -475,8 +517,15 @@ addLog('Server Room Monitor v1.0 initialized','ok');
 addLog('DHT11 sensor online and ready','ok');
 addLog('Piezo buzzer standby','info');
 addLog('Red LED standby','info');
-addLog('Press ▶ SIMULATE to begin or connect Arduino serial feed','info');
-setInterval(tick,1000); tick(); update();
+addLog('Click ▶ CONNECT API to fetch from Arduino','info');
+addLog('Or click ▶ SIMULATE for test data','info');
+
+// Auto-connect to API on load
+setTimeout(() => {
+  toggleAPI();
+}, 1000);
+
+setInterval(tick,1000); tick();
 </script>
 </body>
 </html>
