@@ -1,239 +1,263 @@
 # Server Room Monitor - IoT System
 
-An Arduino Uno R4 WiFi based temperature and humidity monitoring system with FastAPI backend and web UI.
+A real-time temperature and humidity monitoring system for server rooms using Arduino UNO R4 WiFi, DHT11 sensor, and a FastAPI backend with web dashboard.
 
-## System Overview
+## Features
 
-```
-┌─────────────┐    WiFi     ┌─────────────────┐    SQLite    ┌──────────────┐
-│  Arduino    │ ──────────► │  FastAPI Server │ ◄───────────► │  Database    │
-│  Uno R4     │             │  (Port 8000)    │              │  (server_room│
-│  + DHT11    │             │                 │              │   .db)       │
-└─────────────┘             └────────┬────────┘              └──────────────┘
-                                     │
-                                     ▼
-                              ┌──────────────┐
-                              │  Web Browser │
-                              │  (Frontend)  │
-                              └──────────────┘
-```
+- **Real-time Monitoring**: DHT11 sensor reads temperature and humidity every 5 seconds
+- **Temperature Alerts**: Visual (red LED) and audio (piezo buzzer) alerts when temperature exceeds threshold
+- **Web Dashboard**: Interactive dashboard with live data, charts, and statistics
+- **RESTful API**: FastAPI backend with SQLite database for data persistence
+- **Responsive Design**: Works on desktop and mobile devices
+- **Retro UI**: Pixel-perfect, brutalist web interface
 
-## Components
+## Hardware Requirements
 
-| Component | Description |
-|-----------|-------------|
-| **Arduino Uno R4 WiFi** | Sends sensor data to server |
-| **DHT11 Sensor** | Measures temperature (0-50°C) and humidity (20-90%) |
-| **Red LED (Pin 13)** | Lights up when temperature exceeds threshold |
-| **Piezo Buzzer (Pin 8)** | Beeps when alert is triggered |
-| **FastAPI Server** | Receives and stores sensor data |
-| **SQLite Database** | Stores readings and alerts |
-| **Web UI** | Displays real-time data and alerts |
+- **Arduino UNO R4 WiFi**
+- **DHT11 Temperature/Humidity Sensor**
+- **Red LED** (with 220Ω resistor)
+- **Piezo Buzzer** (5V)
+- **Jumper Wires**
 
-## Requirements
+### Pin Configuration
 
-### Hardware
-- Arduino Uno R4 WiFi
-- DHT11 Temperature & Humidity Sensor
-- Red LED
-- Piezo Buzzer
-- Jumper wires
-- USB cable for programming
+| Component | Arduino Pin |
+|-----------|------------|
+| DHT11 Data | Pin 2 |
+| Red LED | Pin 13 |
+| Piezo Buzzer | Pin 8 |
 
-### Software
-- Python 3.8+
-- Arduino IDE
-- Web browser
+## Software Requirements
 
-### Python Packages
-```
-pip install fastapi uvicorn pydantic python-multipart
-```
+- Python 3.9+
+- Arduino IDE with WiFiS3 and DHT libraries
 
-## Pin Connections
+## Setup Instructions
 
-```
-Arduino Uno R4 WiFi
-┌─────────────────────┐
-│                     │
-│   DHT11             │
-│   ─────             │
-│   VCC ─────► 5V     │
-│   DATA ────► Pin 2  │
-│   GND ─────► GND    │
-│                     │
-│   LED               │
-│   ───               │
-│   Positive ► Pin 13│
-│   Negative ► GND    │
-│                     │
-│   Buzzer            │
-│   ──────            │
-│   Positive ► Pin 8 │
-│   Negative ► GND   │
-│                     │
-└─────────────────────┘
+### 1. Backend Setup
+
+```bash
+# Navigate to project directory
+cd IOTSYSTEM
+
+# Create virtual environment
+python -m venv venv
+
+# Activate virtual environment
+# On Windows:
+venv\Scripts\Activate.ps1
+# On macOS/Linux:
+source venv/bin/activate
+
+# Install dependencies
+pip install -r api/requirements.txt
 ```
 
-## Step-by-Step Setup
+### 2. Start the Backend Server
 
-### Step 1: Find Your Computer IP Address
+```bash
+# Navigate to api folder
+cd api
 
-Open Command Prompt and run:
-```cmd
-ipconfig
+# Start FastAPI server (accessible from network)
+python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-Look for "IPv4 Address" under your WiFi adapter:
+You should see:
 ```
-Wireless LAN adapter Wi-Fi:
-
-   IPv4 Address. . . . . . . . . . : 192.168.68.104
+INFO:     Uvicorn running on http://0.0.0.0:8000
 ```
 
-**Your IP is likely: 192.168.68.104**
+### 3. Arduino Setup
 
-### Step 2: Start the FastAPI Server
+1. **Update WiFi Credentials** in the sketch:
+   ```cpp
+   const char* ssid = "YOUR_WIFI_SSID";
+   const char* password = "YOUR_WIFI_PASSWORD";
+   ```
 
-```cmd
-cd c:\xampp\htdocs\IOTSYSTEM
-python -m uvicorn api.main:app --host 0.0.0.0 --port 8000
+2. **Update Server IP Address**:
+   ```cpp
+   const char* serverAddress = "192.168.1.18";  // Your computer's IP
+   const int serverPort = 8000;
+   ```
+
+3. **Find Your IP Address**:
+   ```powershell
+   ipconfig
+   ```
+   Look for **IPv4 Address** on your WiFi adapter
+
+4. **Upload the Sketch** to Arduino UNO R4 WiFi
+
+### 4. Open Frontend
+
+Open `server-room-monitor.html` in your web browser or navigate to:
+```
+http://192.168.1.18:8000/docs
 ```
 
-The server will start at: **http://localhost:8000**
+## API Endpoints
 
-You can also access from other devices on your network:
-**http://192.168.68.104:8000**
-
-### Step 3: Configure the Arduino Sketch
-
-Open [`api/arduino_sketch.cpp`](api/arduino_sketch.cpp) in Arduino IDE and update:
-
-```cpp
-// WiFi credentials
-const char* ssid = "YOUR_WIFI_SSID";           // Your WiFi name
-const char* password = "YOUR_WIFI_PASSWORD";  // Your WiFi password
-
-// Server IP (from Step 1)
-const char* apiServer = "http://192.168.68.104:8000";
+### Get Latest Sensor Reading
+```
+GET /api/sensors
 ```
 
-### Step 4: Install Arduino Libraries
-
-In Arduino IDE, go to **Sketch > Include Library > Manage Libraries**
-
-Search and install:
-1. **DHT sensor library** by Adafruit
-2. **Adafruit Unified Sensor** by Adafruit
-
-### Step 5: Upload Sketch to Arduino
-
-1. Connect Arduino via USB
-2. Select correct board: **Tools > Board > Arduino UNO R4 WiFi**
-3. Select correct port: **Tools > Port > COMx (Arduino UNO R4 WiFi)**
-4. Click **Upload**
-
-### Step 6: Open the Web UI
-
-Open your browser and navigate to:
-```
-c:\xampp\htdocs\IOTSYSTEM\server-room-monitor.html
+Response:
+```json
+{
+  "id": 1,
+  "temperature": 29.7,
+  "humidity": 51.0,
+  "timestamp": "2026-03-23 16:34:05",
+  "threshold": 31.0,
+  "alert": false
+}
 ```
 
-Or via server (after modifying sketch to fetch data):
+### Post Sensor Data (Arduino)
 ```
-http://192.168.68.104:8000/docs
+POST /api/sensors
+Content-Type: application/json
+
+{
+  "temperature": 29.7,
+  "humidity": 51.0
+}
 ```
 
-## How It Works
+Response:
+```json
+{
+  "success": true,
+  "reading_id": 1,
+  "alert": false,
+  "threshold": 31.0,
+  "message": "Reading saved"
+}
+```
 
-### Alert Logic
-1. DHT11 reads temperature every 2 seconds
-2. Arduino sends data to FastAPI server every 5 seconds
-3. Server checks if temperature > threshold (default: 31°C)
-4. If exceeded:
-   - API returns `alert: true`
-   - Arduino activates LED (Pin 13) and buzzer (Pin 8)
-   - Alert is logged in database
+### Get Historical Data
+```
+GET /api/history?limit=60
+```
 
-### API Endpoints
+### Get Settings
+```
+GET /api/settings
+```
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/` | GET | Health check |
-| `/api/sensors` | GET | Get latest reading |
-| `/api/sensors` | POST | Submit sensor data |
-| `/api/settings` | GET | Get threshold |
-| `/api/settings?threshold=30` | PUT | Update threshold |
-| `/api/alerts` | GET | Get alert history |
-| `/api/stats` | GET | Get statistics |
-| `/api/history` | GET | Get data history |
+### Update Threshold
+```
+PUT /api/settings
+Content-Type: application/json
 
-### Testing Without Arduino
-
-You can test the system using curl:
-
-```cmd
-# Normal reading (no alert)
-curl -X POST http://localhost:8000/api/sensors -H "Content-Type: application/json" -d "{\"temperature\": 25.5, \"humidity\": 55.0}"
-
-# Alert reading (triggers LED and buzzer)
-curl -X POST http://localhost:8000/api/sensors -H "Content-Type: application/json" -d "{\"temperature\": 33.5, \"humidity\": 62.0}"
-
-# Change threshold to 35°C
-curl -X PUT "http://localhost:8000/api/settings?threshold=35"
-
-# View current stats
-curl http://localhost:8000/api/stats
+{
+  "threshold": 32.5
+}
 ```
 
 ## Troubleshooting
 
-### Arduino Can't Connect to WiFi
-- Verify WiFi credentials are correct
-- Make sure Arduino is within WiFi range
-- Check serial monitor for error messages
+### Arduino Can't Connect to Server
 
-### Server Not Receiving Data
-- Verify computer and Arduino are on same WiFi network
-- Check firewall allows port 8000
-- Verify IP address is correct in sketch
+**Problem**: `ERROR: Connection failed!`
 
-### DHT11 Reading Errors
-- Check wiring connections
-- Verify DHT library is installed
-- Try different pin if issues persist
+**Solutions**:
+1. **Check IP Address**: Ensure server address matches your computer's IP
+   ```powershell
+   ipconfig
+   ```
 
-### View Serial Monitor
-In Arduino IDE: **Tools > Serial Monitor** (115200 baud)
+2. **Start Server on All Interfaces**:
+   ```bash
+   python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000
+   ```
 
-## Default Settings
+3. **Open Windows Firewall**:
+   ```powershell
+   netsh advfirewall firewall add rule name="FastAPI Port 8000" dir=in action=allow protocol=tcp localport=8000 profile=any
+   ```
 
-| Setting | Value |
-|---------|-------|
-| Temperature Threshold | 31°C |
-| Update Interval | 5 seconds |
-| Database | server_room.db |
+4. **Test Connection**:
+   ```powershell
+   curl http://192.168.1.18:8000
+   ```
 
-## File Structure
+### Arduino WiFi Won't Connect
+
+**Problem**: `ERROR: Failed to connect to WiFi!`
+
+**Solutions**:
+1. Verify SSID and password are correct
+2. Check that 2.4GHz WiFi is available (UNO R4 doesn't support 5GHz)
+3. Move Arduino closer to router
+4. Restart Arduino
+
+### Web Dashboard Not Showing Data
+
+**Problem**: "Waiting for data..."
+
+**Solutions**:
+1. Ensure backend is running: `http://192.168.1.18:8000`
+2. Check Arduino serial monitor for connection status
+3. Verify API endpoint: `http://192.168.1.18:8000/api/sensors`
+
+## Database
+
+The backend uses SQLite (`server_room.db`) with tables:
+- `sensor_readings` - Temperature and humidity readings
+- `settings` - Threshold configuration
+- `alerts` - Alert history
+
+## Project Structure
 
 ```
 IOTSYSTEM/
-├── server-room-monitor.html    # Web UI (open in browser)
-├── README.md                   # This file
-├── server_room.db             # SQLite database (auto-created)
-└── api/
-    ├── main.py                # FastAPI application
-    ├── requirements.txt       # Python dependencies
-    └── arduino_sketch.cpp     # Arduino code
+├── server-room-monitor.html    # Frontend dashboard
+├── api/
+│   ├── main.py                 # FastAPI backend
+│   └── requirements.txt         # Python dependencies
+├── venv/                        # Virtual environment
+├── server_room.db               # SQLite database
+└── README.md                    # This file
 ```
 
-## Security Notes
+## Arduino Sketch Features
 
-- This system is for local network use only
-- The API allows CORS from all origins (`*`)
-- For production, add authentication and restrict origins
+- Auto-reconnect to WiFi if connection drops
+- 10-second connection timeout
+- PHT11 sensor validation
+- Temperature threshold monitoring
+- Pulsing buzzer when alert active
+- Detailed serial logging
+
+## Performance Notes
+
+- Data sent every 5 seconds
+- Server processes data in real-time
+- Database keeps full history
+- Web dashboard updates via polling
+- Threshold adjustable via API or frontend
+
+## Development
+
+To modify the API:
+1. Edit `api/main.py`
+2. Server reloads automatically (with `--reload` flag)
+
+To modify the frontend:
+1. Edit `server-room-monitor.html`
+2. Refresh browser to see changes
+
+## License
+
+Open source project. Free to use and modify.
 
 ## Support
 
-Check the serial monitor in Arduino IDE for debug output.
+For issues or questions, check:
+1. **Arduino Serial Monitor** - See connection and sensor status
+2. **Server Logs** - Terminal output when running `uvicorn`
+3. **Browser Developer Console** - Frontend errors (F12)

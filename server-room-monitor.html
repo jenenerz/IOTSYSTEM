@@ -324,7 +324,8 @@ let startTime=Date.now(), maxTemp=null, minTemp=null, simPhase=0;
 const TH=new Array(60).fill(24), HH=new Array(60).fill(52);
 
 // API Configuration - Explicit server address
-const API_BASE = "http://192.168.68.104:8000";
+// Updated to match backend server's actual IP address
+const API_BASE = "http://192.168.1.18:8000";
 
 function drawServer(a) {
   const c=document.getElementById('serverCanvas'), ctx=c.getContext('2d');
@@ -437,7 +438,18 @@ function tick(){
 
 async function fetchFromAPI() {
   try {
-    const response = await fetch(API_BASE + '/api/sensors');
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+    
+    const response = await fetch(API_BASE + '/api/sensors', {
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+    
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    
     const data = await response.json();
     
     if (data.temperature !== null) {
@@ -454,20 +466,20 @@ async function fetchFromAPI() {
       update();
     }
   } catch (error) {
-    addLog('Error fetching from API: ' + error.message,'warn');
+    if (error.name === 'AbortError') {
+      addLog('API request timeout - no response within 5 seconds','warn');
+    } else {
+      addLog('Error fetching from API: ' + error.message,'warn');
+    }
   }
 }
 
 function toggleSim(){
   if(simRunning){
     clearInterval(simInterval); simRunning=false;
-    document.getElementById('simBtn').textContent='▶ SIMULATE';
-    document.getElementById('simBtn').className='btn green';
     addLog('Simulation stopped','info');
   } else {
     simRunning=true;
-    document.getElementById('simBtn').textContent='■ STOP SIM';
-    document.getElementById('simBtn').className='btn red';
     addLog('Simulation started — DHT11 feeding data','ok');
     runSim(); simInterval=setInterval(runSim,2000);
   }
@@ -481,8 +493,14 @@ function toggleAPI(){
     document.getElementById('simBtn').className='btn green';
     addLog('API disconnected','info');
   } else {
+    // Stop simulation when starting API
+    if(simRunning) {
+      clearInterval(simInterval);
+      simRunning = false;
+    }
+    
     apiRunning=true;
-    document.getElementById('simBtn').textContent='■ DISCONNECT';
+    document.getElementById('simBtn').textContent='■ DISCONNECT API';
     document.getElementById('simBtn').className='btn red';
     addLog('Connecting to Arduino API...','ok');
     fetchFromAPI(); apiInterval=setInterval(fetchFromAPI,3000);
